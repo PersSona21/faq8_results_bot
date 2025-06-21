@@ -4,7 +4,12 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Cal
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data['show_comments'] = False  # по умолчанию комментарии не показываются
+    # Инициализируем данные пользователя
+    user_id = update.effective_user.id
+    print(f"[{user_id}] Пользователь нажал /start")
+
+    if 'show_comments' not in context.user_data:
+        context.user_data['show_comments'] = False
 
     keyboard = [
         [InlineKeyboardButton("Выбрать группу", callback_data='choose_group')],
@@ -16,6 +21,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
+    user_id = update.effective_user.id
     await query.answer()
 
     if query.data == 'toggle_comments':
@@ -30,13 +36,14 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await query.edit_message_reply_markup(reply_markup=keyboard)
         except Exception as e:
-            print("Ошибка при обновлении клавиатуры:", e)
+            print(f"[{user_id}] Ошибка при обновлении клавиатуры:", e)
 
     elif query.data == 'choose_group':
         try:
             with open("data.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
+            print(f"[{user_id}] Ошибка чтения файла:", e)
             await query.message.reply_text("Нет данных для отображения.")
             return
 
@@ -44,6 +51,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         buttons = [InlineKeyboardButton(group, callback_data=f"group_{group}") for group in groups]
         keyboard = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
         keyboard.append([InlineKeyboardButton("⬅️ Назад", callback_data='back_to_menu')])
+
         sent_message = await query.message.reply_text("Выберите группу:", reply_markup=InlineKeyboardMarkup(keyboard))
         context.user_data['last_group_list_message_id'] = sent_message.message_id
 
@@ -53,6 +61,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             with open("data.json", "r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
+            print(f"[{user_id}] Ошибка чтения данных:", e)
             await query.message.reply_text("Ошибка чтения данных.")
             return
 
@@ -63,6 +72,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         show_comments = context.user_data.get('show_comments', False)
         message_text = f"Студенты группы {group}:\n\n"
+
         for student in students:
             comment = f"\nКомментарий: {student['комментарий']}" if show_comments else ""
             message_text += (
@@ -72,10 +82,8 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 f"{'-' * 20}\n"
             )
 
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("⬅️ Назад", callback_data='back_message')]
-        ])
-        sent_message = await query.message.reply_text(message_text, reply_markup=keyboard)
+        keyboard = [[InlineKeyboardButton("⬅️ Назад", callback_data='back_message')]]
+        sent_message = await query.message.reply_text(message_text, reply_markup=InlineKeyboardMarkup(keyboard))
         context.user_data['last_group_message_id'] = sent_message.message_id
 
     elif query.data == 'enter_record':
@@ -87,7 +95,7 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=last_message_id)
             except Exception as e:
-                print("Сообщение уже удалено или не найдено:", e)
+                print(f"[{user_id}] Сообщение уже удалено или не найдено:", e)
 
     elif query.data == 'back_to_menu':
         last_message_id = context.user_data.pop('last_group_list_message_id', None)
@@ -95,20 +103,24 @@ async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
             try:
                 await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=last_message_id)
             except Exception as e:
-                print("Сообщение уже удалено или не найдено:", e)
+                print(f"[{user_id}] Сообщение уже удалено или не найдено:", e)
 
 
 async def handle_input(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
     record_id = update.message.text.strip()
+
     try:
         with open("data.json", "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
+        print(f"[{user_id}] Ошибка чтения данных:", e)
         await update.message.reply_text("Ошибка чтения данных.")
         return
 
     show_comments = context.user_data.get('show_comments', False)
     student = next((item for item in data if item["номер_зачётки"] == record_id), None)
+
     if not student:
         await update.message.reply_text("Студент с такой зачёткой не найден.")
         return
