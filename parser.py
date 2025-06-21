@@ -8,12 +8,11 @@ def parse_grades():
     response = requests.get(url)
     soup = BeautifulSoup(response.text, 'html.parser')
     message_body = soup.find('div', class_='message-body')
-    text = message_body.get_text(strip=False)
 
     data = []
     current_group = None
 
-    for line in [l.strip() for l in text.split('\n') if l.strip()]:
+    for line in [l.strip() for l in message_body.get_text(strip=False).split('\n') if l.strip()]:
         group_match = re.match(r'^(\d+[А-Яа-я]?):', line)
         if group_match:
             current_group = group_match.group(1)
@@ -41,6 +40,3 @@ def parse_grades():
 
     with open("data.json", "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-
-if __name__ == "__main__":
-    parse_grades()
